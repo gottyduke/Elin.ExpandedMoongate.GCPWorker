@@ -1,3 +1,4 @@
+using System.Globalization;
 using EGate.GCP.Helper;
 
 namespace EGate.GCP.Model;
@@ -9,7 +10,7 @@ public sealed record MapMeta
     public required string Title { get; init; }
     public string? Lang { get; init; }
     public string? Cat { get; init; }
-    public required DateTime Date { get; init; }
+    public required string Date { get; init; }
     public required int Version { get; init; }
     public string? Tag { get; init; }
     public required bool IsOfficial { get; init; }
@@ -27,7 +28,9 @@ public sealed record MapMeta
         Title = m.Title,
         Lang = m.Path.ExtractInBetween("/", "/"),
         Cat = m.Cat,
-        Date = DateTime.TryParse(m.DateRaw, out var d) ? d : DateTime.UtcNow,
+        Date = string.IsNullOrEmpty(m.DateRaw)
+            ? DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            : m.DateRaw,
         Version = m.Version,
         Tag = m.Tag,
         IsOfficial = true,
