@@ -1,6 +1,6 @@
 ﻿using EGate.GCP;
 
-const string sourceBase = "https://elin.cloudfree.jp/script/uploader/";
+const string sourceBase = "http://elin.cloudfree.jp/script/uploader/";
 const string targetBase = "https://api-exmoongate.elin-modding.net";
 
 using var http = new HttpClient();
