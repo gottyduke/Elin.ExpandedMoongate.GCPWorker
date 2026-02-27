@@ -89,13 +89,27 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         return res.IsSuccessStatusCode;
     }
 
+    public async Task<bool> GetMapExistAsync(string id, CancellationToken ct = default)
+    {
+        var url = $"{_targetBase}/maps/query/{Uri.EscapeDataString(id)}";
+
+        using var res = await http.GetAsync(url, ct);
+        return res.IsSuccessStatusCode;
+    }
+
     public async Task<bool> DownloadAndUploadAsync(DownloadMeta m, CancellationToken ct = default)
     {
         await _semaphore.WaitAsync(ct);
         try {
+            var mapMeta = MapMeta.FromDownloadMeta(m);
+            var mapExist = await GetMapExistAsync(mapMeta.Id, ct);
+            if (mapExist) {
+                Console.WriteLine($"[{DateTime.UtcNow:O}] SKIP   {m.Id}");
+                return false;
+            }
+
             var fileUrl = $"{_sourceBase}{m.Path}";
             var bytes = await http.GetByteArrayAsync(fileUrl, ct);
-            var mapMeta = MapMeta.FromDownloadMeta(m);
 
             var fileOk = await UploadMapFileAsync(mapMeta.Id, bytes, ct);
             if (!fileOk) {
