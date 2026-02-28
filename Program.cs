@@ -4,6 +4,7 @@ const string sourceBase = "http://elin.cloudfree.jp/script/uploader/";
 const string targetBase = "https://api-exmoongate.elin-modding.net";
 
 using var http = new HttpClient();
+http.DefaultRequestHeaders.Add("x-debugging-key", Environment.GetEnvironmentVariable("EGateDebuggingWorkerKey"));
 http.Timeout = TimeSpan.FromMinutes(5);
 
 var client = new GcpWorkerClient(http, sourceBase, targetBase);
@@ -19,7 +20,10 @@ foreach (var lang in languages) {
         continue;
     }
     Console.WriteLine($"[{DateTime.UtcNow:O}] Fetched {list.Count} entries for {lang}");
-    int ok = 0, fail = 0;
+
+    var ok = 0;
+    var fail = 0;
+
     var tasks = list.Select(async m => {
         try {
             var success = await client.DownloadAndUploadAsync(m);

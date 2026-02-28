@@ -10,6 +10,9 @@ namespace EGate.GCP;
 
 internal class GcpWorkerClient(HttpClient http, string sourceBase, string targetBase, int concurrency = 8)
 {
+    private readonly JsonSerializerOptions _options = new() {
+        PropertyNameCaseInsensitive = true,
+    };
     private readonly SemaphoreSlim _semaphore = new(concurrency, concurrency);
     private readonly string _sourceBase = sourceBase.TrimEnd('/') + "/";
     private readonly string _targetBase = targetBase.TrimEnd('/');
@@ -73,7 +76,6 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
 
         using var content = new ByteArrayContent(bytes);
         content.Headers.ContentType = new("application/octet-stream");
-        content.Headers.Add("x-debugging-key", Environment.GetEnvironmentVariable("EGateDebuggingWorkerKey"));
 
         using var res = await http.PostAsync(url, content, ct);
         return res.IsSuccessStatusCode;
@@ -85,7 +87,6 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         var json = JsonSerializer.Serialize(meta);
 
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
-        content.Headers.Add("x-debugging-key", Environment.GetEnvironmentVariable("EGateDebuggingWorkerKey"));
 
         using var res = await http.PostAsync(url, content, ct);
         if (res.IsSuccessStatusCode) {
@@ -94,8 +95,12 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
 
         if (res.StatusCode == HttpStatusCode.Conflict) {
             var fileKey = await res.Content.ReadAsStringAsync(ct);
-            await UploadMapFileAsync(fileKey, bytes, ct);
-            return await UploadMapAsync(id, meta, bytes, ct);
+
+            var surrogate = JsonSerializer.Deserialize<UploadFileKeySurrogate>(fileKey, _options);
+            var success = await UploadMapFileAsync(surrogate!.FileKey, bytes, ct);
+            if (success) {
+                return await UploadMapAsync(id, meta, bytes, ct);
+            }
         }
 
         return false;
@@ -105,7 +110,7 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
     {
         var url = $"{_targetBase}/maps/query/{Uri.EscapeDataString(id)}";
 
-        using var res = await http.GetAsync(url, ct);
+        var res = await http.GetAsync(url, ct);
         return res.IsSuccessStatusCode;
     }
 
@@ -127,4 +132,6 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
             _semaphore.Release();
         }
     }
+
+    public record UploadFileKeySurrogate(string FileKey);
 }
