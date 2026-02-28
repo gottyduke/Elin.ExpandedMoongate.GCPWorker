@@ -1,16 +1,18 @@
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using CsvHelper;
+using CsvHelper.Configuration;
 using EGate.GCP.Model;
 
 namespace EGate.GCP;
 
 internal class GcpWorkerClient(HttpClient http, string sourceBase, string targetBase, int concurrency = 8)
 {
+    private readonly SemaphoreSlim _semaphore = new(concurrency, concurrency);
     private readonly string _sourceBase = sourceBase.TrimEnd('/') + "/";
     private readonly string _targetBase = targetBase.TrimEnd('/');
-    private readonly SemaphoreSlim _semaphore = new(concurrency, concurrency);
 
     public async Task<List<DownloadMeta>?> GetFileListAsync(string lang, CancellationToken ct = default)
     {
@@ -24,7 +26,7 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         var list = new List<DownloadMeta>();
 
         using var sr = new StringReader(text);
-        var cfg = new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture) {
+        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture) {
             HasHeaderRecord = false,
             IgnoreBlankLines = true,
             BadDataFound = null,
@@ -65,9 +67,9 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         try { return csv.GetField(index); } catch { return null; }
     }
 
-    public async Task<bool> UploadMapFileAsync(string id, byte[] bytes, CancellationToken ct = default)
+    public async Task<bool> UploadMapFileAsync(string fileKey, byte[] bytes, CancellationToken ct = default)
     {
-        var url = $"{_targetBase}/files/upload/{Uri.EscapeDataString(id)}";
+        var url = $"{_targetBase}/files/upload/{Uri.EscapeDataString(fileKey)}";
 
         using var content = new ByteArrayContent(bytes);
         content.Headers.ContentType = new("application/octet-stream");
@@ -77,7 +79,7 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         return res.IsSuccessStatusCode;
     }
 
-    public async Task<bool> UploadMapMetaAsync(string id, MapMeta meta, CancellationToken ct = default)
+    public async Task<bool> UploadMapAsync(string id, MapMeta meta, byte[] bytes, CancellationToken ct = default)
     {
         var url = $"{_targetBase}/maps/upload/{Uri.EscapeDataString(id)}";
         var json = JsonSerializer.Serialize(meta);
@@ -86,7 +88,17 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         content.Headers.Add("x-debugging-key", Environment.GetEnvironmentVariable("EGateDebuggingWorkerKey"));
 
         using var res = await http.PostAsync(url, content, ct);
-        return res.IsSuccessStatusCode;
+        if (res.IsSuccessStatusCode) {
+            return true;
+        }
+
+        if (res.StatusCode == HttpStatusCode.Conflict) {
+            var fileKey = await res.Content.ReadAsStringAsync(ct);
+            await UploadMapFileAsync(fileKey, bytes, ct);
+            return await UploadMapAsync(id, meta, bytes, ct);
+        }
+
+        return false;
     }
 
     public async Task<bool> GetMapExistAsync(string id, CancellationToken ct = default)
@@ -110,13 +122,7 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
 
             var fileUrl = $"{_sourceBase}{m.Path}";
             var bytes = await http.GetByteArrayAsync(fileUrl, ct);
-
-            var fileOk = await UploadMapFileAsync(mapMeta.Id, bytes, ct);
-            if (!fileOk) {
-                return false;
-            }
-
-            return await UploadMapMetaAsync(mapMeta.Id, mapMeta, ct);
+            return await UploadMapAsync(mapMeta.Id, mapMeta, bytes, ct);
         } finally {
             _semaphore.Release();
         }

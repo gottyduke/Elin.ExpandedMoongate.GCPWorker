@@ -6,7 +6,7 @@ const string targetBase = "https://api-exmoongate.elin-modding.net";
 using var http = new HttpClient();
 http.Timeout = TimeSpan.FromMinutes(5);
 
-var client = new GcpWorkerClient(http, sourceBase, targetBase, 8);
+var client = new GcpWorkerClient(http, sourceBase, targetBase);
 
 string[] languages = ["EN", "CN", "JP"];
 Console.WriteLine($"[{DateTime.UtcNow:O}] Map sync started. Languages: {string.Join(", ", languages)}");
@@ -35,7 +35,7 @@ foreach (var lang in languages) {
             Console.WriteLine($"[{DateTime.UtcNow:O}] ERR  {lang} {m.Path} :: {ex.Message}");
         }
     });
-    await System.Threading.Tasks.Task.WhenAll(tasks);
+    await Task.WhenAll(tasks);
     Console.WriteLine(
         $"[{DateTime.UtcNow:O}] Finished {lang}. Total={list.Count}, Success={ok}, Failed={fail}");
 }
