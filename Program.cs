@@ -36,7 +36,7 @@ foreach (var lang in languages) {
             }
         } catch (Exception ex) {
             Interlocked.Increment(ref fail);
-            Console.WriteLine($"[{DateTime.UtcNow:O}] ERR  {lang} {m.Path} :: {ex.Message}");
+            Console.WriteLine($"[{DateTime.UtcNow:O}] ERR  {lang} {m.Path} :: {ex.Message}\n{ex}");
         }
     });
     await Task.WhenAll(tasks);

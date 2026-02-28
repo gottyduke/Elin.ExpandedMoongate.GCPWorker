@@ -93,25 +93,22 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
             return true;
         }
 
-        if (res.StatusCode == HttpStatusCode.Conflict) {
-            var fileKey = await res.Content.ReadAsStringAsync(ct);
+        switch (res.StatusCode) {
+            case HttpStatusCode.Conflict:
+                Console.WriteLine($"[{DateTime.UtcNow:O}] SKIP    {meta.Id}");
+                return true;
+            case HttpStatusCode.FailedDependency: {
+                var fileKey = await res.Content.ReadAsStringAsync(ct);
 
-            var surrogate = JsonSerializer.Deserialize<UploadFileKeySurrogate>(fileKey, _options);
-            var success = await UploadMapFileAsync(surrogate!.FileKey, bytes, ct);
-            if (success) {
-                return await UploadMapAsync(id, meta, bytes, ct);
+                var surrogate = JsonSerializer.Deserialize<UploadFileKeySurrogate>(fileKey, _options);
+                var success = await UploadMapFileAsync(surrogate!.FileKey, bytes, ct);
+                if (success) {
+                    return await UploadMapAsync(id, meta, bytes, ct);
+                }
+                break;
             }
         }
-
         return false;
-    }
-
-    public async Task<bool> GetMapExistAsync(string id, CancellationToken ct = default)
-    {
-        var url = $"{_targetBase}/maps/query/{Uri.EscapeDataString(id)}";
-
-        var res = await http.GetAsync(url, ct);
-        return res.IsSuccessStatusCode;
     }
 
     public async Task<bool> DownloadAndUploadAsync(DownloadMeta m, CancellationToken ct = default)
@@ -119,12 +116,6 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         await _semaphore.WaitAsync(ct);
         try {
             var mapMeta = MapMeta.FromDownloadMeta(m);
-            var mapExist = await GetMapExistAsync(mapMeta.Id, ct);
-            if (mapExist) {
-                Console.WriteLine($"[{DateTime.UtcNow:O}] SKIP   {m.Id}");
-                return false;
-            }
-
             var fileUrl = $"{_sourceBase}{m.Path}";
             var bytes = await http.GetByteArrayAsync(fileUrl, ct);
             return await UploadMapAsync(mapMeta.Id, mapMeta, bytes, ct);
