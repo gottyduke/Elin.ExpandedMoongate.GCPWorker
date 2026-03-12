@@ -101,7 +101,7 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
                 var fileKey = await res.Content.ReadAsStringAsync(ct);
 
                 var surrogate = JsonSerializer.Deserialize<UploadFileKeySurrogate>(fileKey, _options);
-                var success = await UploadMapFileAsync(surrogate!.FileKey, bytes, ct);
+                var success = await UploadMapFileAsync(surrogate!.FileKeyId, bytes, ct);
                 if (success) {
                     return await UploadMapAsync(id, meta, bytes, ct);
                 }
@@ -124,5 +124,5 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
         }
     }
 
-    public record UploadFileKeySurrogate(string FileKey);
+    public record UploadFileKeySurrogate(string FileKeyId);
 }
