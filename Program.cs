@@ -1,7 +1,7 @@
 ﻿using EGate.GCP;
 
 const string sourceBase = "http://elin.cloudfree.jp/script/uploader/";
-const string targetBase = "https://api-exmoongate.elin-modding.net";
+const string targetBase = "https://api.exmoongate.elin-modding.net";
 
 using var http = new HttpClient();
 http.DefaultRequestHeaders.Add("x-debugging-key", Environment.GetEnvironmentVariable("EGateDebuggingWorkerKey"));
