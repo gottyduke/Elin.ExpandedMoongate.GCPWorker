@@ -72,7 +72,7 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
 
     public async Task<bool> UploadMapFileAsync(string fileKey, byte[] bytes, CancellationToken ct = default)
     {
-        var url = $"{_targetBase}/files/upload/{Uri.EscapeDataString(fileKey)}";
+        var url = $"{_targetBase}/files/upload?fileKeyId={Uri.EscapeDataString(fileKey)}";
 
         using var content = new ByteArrayContent(bytes);
         content.Headers.ContentType = new("application/octet-stream");
@@ -83,7 +83,7 @@ internal class GcpWorkerClient(HttpClient http, string sourceBase, string target
 
     public async Task<bool> UploadMapAsync(string id, MapMeta meta, byte[] bytes, CancellationToken ct = default)
     {
-        var url = $"{_targetBase}/maps/upload/{Uri.EscapeDataString(id)}";
+        var url = $"{_targetBase}/maps/upload?mapId={Uri.EscapeDataString(id)}";
         var json = JsonSerializer.Serialize(meta);
 
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
